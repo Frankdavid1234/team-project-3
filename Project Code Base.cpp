@@ -176,8 +176,7 @@ int Graph<T>::get_vertex_index(const Vertex<T>& ver) {
 }
 
 template <typename T>
-void Graph<T>::add_edge(const Vertex<T>& ver1, const Vertex<T>& ver2,
-                        int distance, int cost) {
+void Graph<T>::add_edge(const Vertex<T>& ver1, const Vertex<T>& ver2, int distance, int cost) {
 
     int i1 = get_vertex_index(ver1);
     int i2 = get_vertex_index(ver2);
