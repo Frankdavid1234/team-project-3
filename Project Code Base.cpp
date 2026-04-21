@@ -225,10 +225,8 @@ void Graph<T>::load_csv(const std::string& filename) {
 }
 
 // ================= DIJKSTRA =================
-
 template<typename T>
-int Graph<T>::dijkstra_shortest_path(const Vertex<T>& src,
-                                      const Vertex<T>& dest) {
+int Graph<T>::dijkstra_shortest_path(const Vertex<T>& src, const Vertex<T>& dest) {
 
     int i_src = get_vertex_index(src);
     int i_dest = get_vertex_index(dest);
@@ -238,6 +236,7 @@ int Graph<T>::dijkstra_shortest_path(const Vertex<T>& src,
 
     std::vector<int> dist(vertices.size(), INT_MAX);
     std::vector<bool> visited(vertices.size(), false);
+    std::vector<int> parent(vertices.size(), -1);
 
     dist[i_src] = 0;
 
@@ -252,16 +251,36 @@ int Graph<T>::dijkstra_shortest_path(const Vertex<T>& src,
         if (visited[u]) continue;
         visited[u] = true;
 
+        if (u == i_dest) break;
+
         for (auto& e : edges[u]) {
             int v = e.dest;
             int newDist = dist[u] + e.distance;
 
             if (newDist < dist[v]) {
                 dist[v] = newDist;
+                parent[v] = u;
                 heap.insert(Edge(u, v, newDist, 0));
             }
         }
     }
+
+    if (dist[i_dest] == INT_MAX) {
+        return -1;
+    }
+
+    std::vector<int> path;
+    for (int v = i_dest; v != -1; v = parent[v]) {
+        path.push_back(v);
+    }
+
+    std::cout << "Path: ";
+    for (int i = path.size() - 1; i >= 0; i--) {
+        std::cout << vertices[path[i]].getData();
+        if (i != 0) std::cout << " -> ";
+    }
+
+    std::cout << "\nDistance: " << dist[i_dest] << std::endl;
 
     return dist[i_dest];
 }
