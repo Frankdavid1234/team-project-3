@@ -4,6 +4,8 @@
 #include <string>
 #include <climits>
 #include <unistd.h>
+#include <fstream>
+#include <sstream>
 
 // ================= EDGE =================
 class Edge {
@@ -44,6 +46,7 @@ public:
     void insert(const T& val);
     void print() const;
     T delete_min();
+    bool empty() const { return data.empty(); }
 
 private:
     std::vector<T> data;
@@ -71,16 +74,8 @@ void MinHeap<T>::insert(const T& val) {
 
 template<typename T>
 void MinHeap<T>::print() const {
-    int cur_level = 0, new_level = 1;
-
     for (const T& i : data) {
         std::cout << i << ' ';
-        cur_level++;
-        if (cur_level == new_level) {
-            std::cout << "\n";
-            new_level *= 2;
-            cur_level = 0;
-        }
     }
     std::cout << "\n----------------------------\n";
 }
@@ -103,8 +98,6 @@ T MinHeap<T>::delete_min() {
 
 template<typename T>
 void MinHeap<T>::percolate_down(int i) {
-    if (i < 0 || i >= data.size()) return;
-
     int parent = i;
 
     while (true) {
@@ -126,9 +119,6 @@ void MinHeap<T>::percolate_down(int i) {
 
 template<typename T>
 int MinHeap<T>::min_index(int i1, int i2) const {
-    if (i1 >= data.size() || i2 >= data.size())
-        throw std::string("min_index: incorrect index");
-
     return (data[i1] < data[i2] ? i1 : i2);
 }
 
@@ -138,14 +128,11 @@ class Graph {
 public:
     void insert_vertex(const Vertex<T>& ver);
 
-    // FIXED: now includes distance + cost
     void add_edge(const Vertex<T>& ver1, const Vertex<T>& ver2,
                   int distance, int cost);
 
     void print() const;
-
-    void DFS(Vertex<T>& ver);
-    void BFS(Vertex<T>& ver);
+    void load_csv(const std::string& filename);
 
     int dijkstra_shortest_path(const Vertex<T>& src, const Vertex<T>& dest);
 
@@ -153,10 +140,10 @@ private:
     std::vector<Vertex<T>> vertices;
     std::vector<std::vector<Edge>> edges;
 
-    void clean_visited();
-    void DFS_helper(Vertex<T>& ver);
     int get_vertex_index(const Vertex<T>& ver);
 };
+
+// ================= GRAPH METHODS =================
 
 template <typename T>
 void Graph<T>::insert_vertex(const Vertex<T>& ver) {
@@ -176,7 +163,8 @@ int Graph<T>::get_vertex_index(const Vertex<T>& ver) {
 }
 
 template <typename T>
-void Graph<T>::add_edge(const Vertex<T>& ver1, const Vertex<T>& ver2, int distance, int cost) {
+void Graph<T>::add_edge(const Vertex<T>& ver1, const Vertex<T>& ver2,
+                         int distance, int cost) {
 
     int i1 = get_vertex_index(ver1);
     int i2 = get_vertex_index(ver2);
@@ -187,75 +175,60 @@ void Graph<T>::add_edge(const Vertex<T>& ver1, const Vertex<T>& ver2, int distan
     edges[i1].push_back(Edge(i1, i2, distance, cost));
 }
 
-template <typename T>
-void Graph<T>::print() const {
-    for (int i = 0; i < vertices.size(); i++) {
-        std::cout << "{ " << vertices[i].getData() << ": ";
-        for (auto& e : edges[i]) {
-            std::cout << '{' << vertices[e.dest].getData()
-                      << ", " << e.weight << "} ";
-        }
-        std::cout << "}\n";
-    }
-}
+// ================= CSV LOADER (FIXED) =================
 
 template <typename T>
-void Graph<T>::clean_visited() {
-    for (auto& v : vertices)
-        v.setVisited(false);
-}
+void Graph<T>::load_csv(const std::string& filename) {
 
-template <typename T>
-void Graph<T>::DFS(Vertex<T>& ver) {
-    clean_visited();
-    DFS_helper(ver);
-    clean_visited();
-}
+    std::ifstream file(filename);
 
-template <typename T>
-void Graph<T>::DFS_helper(Vertex<T>& ver) {
-    int i = get_vertex_index(ver);
-    if (i == -1) throw std::string("DFS: Vertex not found");
-
-    vertices[i].setVisited(true);
-    std::cout << vertices[i].getData() << ' ';
-
-    for (auto& e : edges[i]) {
-        if (!vertices[e.dest].getVisited()) {
-            DFS_helper(vertices[e.dest]);
-        }
-    }
-}
-
-template <typename T>
-void Graph<T>::BFS(Vertex<T>& ver) {
-    clean_visited();
-
-    int i = get_vertex_index(ver);
-    if (i == -1) throw std::string("BFS: Vertex not found");
-
-    std::queue<int> q;
-    q.push(i);
-    vertices[i].setVisited(true);
-
-    while (!q.empty()) {
-        int cur = q.front();
-        std::cout << vertices[cur].getData() << ' ';
-
-        for (auto& e : edges[cur]) {
-            if (!vertices[e.dest].getVisited()) {
-                vertices[e.dest].setVisited(true);
-                q.push(e.dest);
-            }
-        }
-        q.pop();
+    if (!file.is_open()) {
+        throw std::string("Could not open CSV file");
     }
 
-    clean_visited();
+    std::string line;
+
+    std::getline(file, line); // skip header
+
+    while (std::getline(file, line)) {
+
+        if (line.empty()) continue;
+
+        std::stringstream ss(line);
+
+        std::string origin, dest;
+        std::string origin_city, dest_city;
+        std::string distanceStr, costStr;
+
+        std::getline(ss, origin, ',');
+        std::getline(ss, dest, ',');
+        std::getline(ss, origin_city, ',');
+        std::getline(ss, dest_city, ',');
+        std::getline(ss, distanceStr, ',');
+        std::getline(ss, costStr, ',');
+
+        if (distanceStr.empty() || costStr.empty()) continue;
+
+        int distance = std::stoi(distanceStr);
+        int cost = std::stoi(costStr);
+
+        Vertex<T> v1(origin);
+        Vertex<T> v2(dest);
+
+        insert_vertex(v1);
+        insert_vertex(v2);
+
+        add_edge(v1, v2, distance, cost);
+    }
+
+    file.close();
 }
+
+// ================= DIJKSTRA =================
 
 template<typename T>
-int Graph<T>::dijkstra_shortest_path(const Vertex<T>& src, const Vertex<T>& dest) {
+int Graph<T>::dijkstra_shortest_path(const Vertex<T>& src,
+                                      const Vertex<T>& dest) {
 
     int i_src = get_vertex_index(src);
     int i_dest = get_vertex_index(dest);
@@ -271,9 +244,7 @@ int Graph<T>::dijkstra_shortest_path(const Vertex<T>& src, const Vertex<T>& dest
     MinHeap<Edge> heap;
     heap.insert(Edge(-1, i_src, 0, 0));
 
-    while (true) {
-
-        if (dist[i_dest] != INT_MAX) break;
+    while (!heap.empty()) {
 
         Edge current = heap.delete_min();
         int u = current.dest;
@@ -290,46 +261,16 @@ int Graph<T>::dijkstra_shortest_path(const Vertex<T>& src, const Vertex<T>& dest
                 heap.insert(Edge(u, v, newDist, 0));
             }
         }
-
-        if (heapEmptyCheckHack()) break; // safety fallback
     }
 
     return dist[i_dest];
 }
-// ================= MAIN ================= example test
+
+// ================= MAIN =================
+
 int main() {
-    Vertex<std::string> v("SFO"), v2("LAX"), v3("DFW"),
-                        v4("ORD"), v5("JFK"), v6("BOS"), v7("MIA");
-
     Graph<std::string> airports;
-
-    airports.insert_vertex(v);
-    airports.insert_vertex(v2);
-    airports.insert_vertex(v3);
-    airports.insert_vertex(v4);
-    airports.insert_vertex(v5);
-    airports.insert_vertex(v6);
-    airports.insert_vertex(v7);
-
-    airports.add_edge(v, v2, 337);
-    airports.add_edge(v, v3, 1464);
-    airports.add_edge(v, v4, 1846);
-    airports.add_edge(v, v6, 2704);
-    airports.add_edge(v3, v4, 802);
-    airports.add_edge(v6, v4, 867);
-    airports.add_edge(v5, v6, 187);
-    airports.add_edge(v5, v7, 1090);
-    airports.add_edge(v6, v7, 1258);
-    airports.add_edge(v2, v7, 2342);
-    airports.add_edge(v2, v3, 1235);
-    airports.add_edge(v7, v3, 1121);
-    airports.add_edge(v4, v5, 740);
-
-    airports.print();
-
-    std::cout << "\n";
-    std::cout << airports.shortest_path(v7, v) << "\n";
-    std::cout << airports.dijkstra_shortest_path(v7, v) << "\n";
+    airports.load_csv("airports.csv");
 
     return 0;
 }
