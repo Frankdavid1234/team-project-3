@@ -191,21 +191,30 @@ void Graph<T>::load_csv(const std::string& filename) {
     while (std::getline(file, line)) {
         if (line.empty()) continue;
 
-        std::stringstream ss(line);
-        std::string origin, dest, _, __, dStr, cStr;
+        std::vector<std::string> fields;
+        std::string current;
+        bool inQuotes = false;
 
-        std::getline(ss, origin, ',');
-        std::getline(ss, dest, ',');
-        std::getline(ss, _, ',');
-        std::getline(ss, __, ',');
-        std::getline(ss, dStr, ',');
-        std::getline(ss, cStr, ',');
+        for (char ch : line) {
+            if (ch == '"') {
+                inQuotes = !inQuotes;
+            }
+            else if (ch == ',' && !inQuotes) {
+                fields.push_back(current);
+                current.clear();
+            }
+            else {
+                current += ch;
+            }
+        }
+        fields.push_back(current);
 
-        if (dStr.empty() || cStr.empty()) continue;
-        /* Debug command to see what was wrong with CSV loader
-        std::cout << "DEBUG dStr='" << dStr << "' cStr='" << cStr << "'\n"; */
-        int d = std::stoi(dStr);
-        int c = std::stoi(cStr);
+        if (fields.size() != 6) continue;
+
+        std::string origin = fields[0];
+        std::string dest = fields[1];
+        int d = std::stoi(fields[4]);
+        int c = std::stoi(fields[5]);
 
         Vertex<T> v1(origin), v2(dest);
         insert_vertex(v1);
