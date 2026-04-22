@@ -136,7 +136,7 @@ private:
     std::vector<std::vector<Edge>> build_undirected_cost_graph();
 };
 
-// ================= BASIC GRAPH =================
+// ================= GRAPH METHODS =================
 template <typename T>
 void Graph<T>::insert_vertex(const Vertex<T>& ver) {
     if (get_vertex_index(ver) == -1) {
