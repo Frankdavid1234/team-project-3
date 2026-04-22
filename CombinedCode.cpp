@@ -566,7 +566,7 @@ int main() {
 
     // ---- LOAD CSV ----
     std::cout << "--- Loading Graph ---\n";
-    g.load_csv("airports.csv");  // ⚠️ FIXED: should be .csv, not .h
+    g.load_csv("airports.h");  
     g.print();
 
     // ---- DIJKSTRA (single source → destination) ----
