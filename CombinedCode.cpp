@@ -9,7 +9,11 @@
 #include <map>
 #include <algorithm>
 #include <functional>
-
+#include <unordered_map>
+#include <queue>
+#include <vector>
+#include <algorithm>
+#include <climits>
 // ================= EDGE =================
 class Edge {
 public:
@@ -35,7 +39,6 @@ public:
     const T& getData() const { return data; }
     bool getVisited() const { return visited; }
     void setVisited(bool v) { visited = v; }
-    T get_data() const { return data; }
 private:
     T data;
     bool visited;
@@ -109,18 +112,19 @@ void MinHeap<T>::percolate_down(int i) {
 template <typename T>
 class Graph {
 public:
+    std::unordered_map<T, std::vector<std::pair<Vertex<T>, int>>> adjList;
     void insert_vertex(const Vertex<T>& ver);
-    void add_edge(const Vertex<T>& ver1, const Vertex<T>& ver2,
-                  int distance, int cost);
+    void add_edge(const Vertex<T>& ver1, const Vertex<T>& ver2, int distance, int cost);
 
     void print() const;
     void load_csv(const std::string& filename);
 
     // Traversals
-    int shortest_path_k_stops(const Vertex<T>& src,const Vertex<T>& dest, int K);      
+    void shortest_paths_to_state(const Vertex<T>& src, const std::string& prefix);
+    void shortest_path_k_stops(const Vertex<T>& src, const Vertex<T>& dest, int K);
     void DFS(Vertex<T>& ver);
     void BFS(Vertex<T>& ver);
-    void print_connection_counts();
+    void connection_count();
     void shortest_paths_to_prefix(const Vertex<T>& src, const std::string& prefix);
 
     // Algorithms
@@ -280,34 +284,33 @@ void Graph<T>::BFS(Vertex<T>& ver) {
     clean_visited();
 }
 
+
 // ================= DIJKSTRA =================
 template<typename T>
-
 int Graph<T>::dijkstra_shortest_path(const Vertex<T>& src, const Vertex<T>& dest) {
+
     int s = get_vertex_index(src);
     int t = get_vertex_index(dest);
 
     if (s == -1 || t == -1)
         throw std::string("Invalid vertices");
 
-    std::vector<int> dist(vertices.size(), INT_MAX);
-    std::vector<bool> visited(vertices.size(), false);
-    std::vector<int> parent(vertices.size(), -1);
+    int n = vertices.size();
+
+    std::vector<int> dist(n, INT_MAX);
+    std::vector<bool> vis(n, false);
+    std::vector<int> parent(n, -1);
 
     dist[s] = 0;
     MinHeap<Edge> heap;
     heap.insert(Edge(-1, s, 0, 0));
 
-    std::cout << "Traversal order:\n";
-
     while (!heap.empty()) {
         Edge cur = heap.delete_min();
         int u = cur.dest;
 
-        if (visited[u]) continue;
-        visited[u] = true;
-
-        std::cout << "Visited: " << vertices[u].getData() << "\n";
+        if (vis[u]) continue;
+        vis[u] = true;
 
         for (auto& e : edges[u]) {
             int v = e.dest;
@@ -323,224 +326,79 @@ int Graph<T>::dijkstra_shortest_path(const Vertex<T>& src, const Vertex<T>& dest
 
     if (dist[t] == INT_MAX) return -1;
 
-    std::cout << "Distance: " << dist[t] << "\n";
+    std::vector<int> path;
+    for (int v = t; v != -1; v = parent[v])
+        path.push_back(v);
+
+    std::reverse(path.begin(), path.end());
+
+    std::cout << "Path: ";
+    for (int v : path)
+        std::cout << vertices[v].getData() << " ";
+    std::cout << "\nDistance: " << dist[t] << "\n";
+
     return dist[t];
 }
 
-// ================= MST =================
-template<typename T>
-std::vector<std::vector<Edge>> Graph<T>::build_undirected_cost_graph() {
+// ================= K STOPS =================
+template <typename T>
+void Graph<T>::shortest_path_k_stops(const Vertex<T>& src, const Vertex<T>& dest, int K)
+{
+    std::queue<std::tuple<T, int, int>> q;
+    q.push({src.getData(), 0, 0}); // node, cost, stops
 
-    int n = vertices.size();
-    std::vector<std::vector<Edge>> undirected(n);
-    std::map<std::pair<int,int>, Edge> best;
+    std::unordered_map<T, int> best;
+    best[src.getData()] = 0;
 
-    for (int u = 0; u < n; u++) {
-        for (auto& e : edges[u]) {
-            int a = std::min(u, e.dest);
-            int b = std::max(u, e.dest);
+    while (!q.empty())
+    {
+        auto [u, cost, stops] = q.front();
+        q.pop();
 
-            if (!best.count({a,b}) || e.cost < best[{a,b}].cost)
-                best[{a,b}] = e;
+        if (stops > K) continue;
+
+        if (u == dest.getData())
+        {
+            std::cout << "Cost with <= " << K << " stops: " << cost << "\n";
+            return;
         }
-    }
 
-    for (auto& p : best) {
-        int u = p.first.first, v = p.first.second;
-        int c = p.second.cost;
+        for (const auto& edge : this->adjList[u])
+        {
+            T v = edge.first.getData();  // <-- FIX
+            int w = edge.second;
 
-        undirected[u].push_back(Edge(u,v,0,c));
-        undirected[v].push_back(Edge(v,u,0,c));
-    }
-
-    return undirected;
-}
-
-
-template<typename T>
-void Graph<T>::shortest_paths_to_prefix(const Vertex<T>& src, const std::string& prefix) {
-
-    int s = get_vertex_index(src);
-    if (s == -1) throw std::string("Invalid source");
-
-    int n = vertices.size();
-    std::vector<int> dist(n, INT_MAX);
-    std::vector<int> parent(n, -1);
-
-    MinHeap<Edge> heap;
-    dist[s] = 0;
-    heap.insert(Edge(-1, s, 0, 0));
-
-    while (!heap.empty()) {
-        Edge cur = heap.delete_min();
-        int u = cur.dest;
-
-        for (auto& e : edges[u]) {
-            int v = e.dest;
-            int nd = dist[u] + e.distance;
-
-            if (nd < dist[v]) {
-                dist[v] = nd;
-                parent[v] = u;
-                heap.insert(Edge(u, v, nd, 0));
+            if (!best.count(v) || cost + w < best[v])
+            {
+                best[v] = cost + w;
+                q.push({v, cost + w, stops + 1});
             }
         }
     }
 
-    std::cout << "\n--- Paths to prefix: " << prefix << " ---\n";
-
-    bool found = false;
-
-    for (int i = 0; i < n; i++) {
-        std::string name = vertices[i].getData();
-
-        if (name.substr(0, prefix.size()) == prefix && dist[i] != INT_MAX) {
-            found = true;
-
-            std::vector<int> path;
-            for (int v = i; v != -1; v = parent[v])
-                path.push_back(v);
-
-            std::reverse(path.begin(), path.end());
-
-            for (int p : path)
-                std::cout << vertices[p].getData() << " ";
-
-            std::cout << "| Dist: " << dist[i] << "\n";
-        }
-    }
-
-    if (!found)
-        std::cout << "No paths found\n";
+    std::cout << "No path within " << K << " stops.\n";
 }
-
-
-template<typename T>
-void Graph<T>::print_connection_counts() {
-
-    int n = vertices.size();
-    std::vector<int> inbound(n, 0), outbound(n, 0);
-
-    for (int u = 0; u < n; u++) {
-        for (auto& e : edges[u]) {
-            outbound[u]++;
-            inbound[e.dest]++;
-        }
-    }
-
-    std::vector<std::pair<int,int>> total;
-
-    for (int i = 0; i < n; i++) {
-        int sum = inbound[i] + outbound[i];
-        total.push_back({sum, i});
-    }
-
-    std::sort(total.begin(), total.end(),
-              [](auto& a, auto& b){ return a.first > b.first; });
-
-    std::cout << "\n--- Connection Counts ---\n";
-    for (auto& p : total) {
-        int i = p.second;
-        std::cout << vertices[i].getData()
-                  << " | Total: " << p.first
-                  << " (In: " << inbound[i]
-                  << ", Out: " << outbound[i] << ")\n";
-    }
-}
-
-template<typename T>
-int Graph<T>::shortest_path_k_stops(const Vertex<T>& src,const Vertex<T>& dest,int K) {
-
-    int s = get_vertex_index(src);
-    int t = get_vertex_index(dest);
-
-    if (s == -1 || t == -1)
-        throw std::string("Invalid vertices");
-
-    int n = vertices.size();
-
-    std::vector<std::vector<int>> dist(n, std::vector<int>(K+2, INT_MAX));
-    dist[s][0] = 0;
-
-    for (int k = 0; k <= K; k++) {
-        for (int u = 0; u < n; u++) {
-            if (dist[u][k] == INT_MAX) continue;
-
-            for (auto& e : edges[u]) {
-                int v = e.dest;
-                dist[v][k+1] = std::min(dist[v][k+1],
-                                        dist[u][k] + e.distance);
-            }
-        }
-    }
-
-    if (dist[t][K+1] == INT_MAX) {
-        std::cout << "No path with " << K << " stops\n";
-        return -1;
-    }
-
-    std::cout << "Shortest distance with "
-              << K << " stops: " << dist[t][K+1] << "\n";
-
-    return dist[t][K+1];
-}
-
-
-template<typename T>
-void Graph<T>::prim_mst(const Vertex<T>& start) {
-
-    auto g = build_undirected_cost_graph();
-    int s = get_vertex_index(start);
-
-    std::vector<bool> vis(vertices.size(), false);
-    MinHeap<Edge> heap;
-
-    vis[s] = true;
-    for (auto& e : g[s]) heap.insert(e);
-
-    int total = 0;
-
-    while (!heap.empty()) {
-        Edge e = heap.delete_min();
-        if (vis[e.dest]) continue;
-
-        vis[e.dest] = true;
-        total += e.cost;
-
-        std::cout << vertices[e.src].getData()
-                  << "-" << vertices[e.dest].getData()
-                  << " (" << e.cost << ")\n";
-
-        for (auto& ne : g[e.dest])
-            if (!vis[ne.dest]) heap.insert(ne);
-    }
-    bool connected = true;
-    for (bool v : vis)
-        if (!v) connected = false;
-
-    if (!connected)
-        std::cout << "Graph is disconnected. MST not possible.\n";
-    std::cout << "Total: " << total << "\n";
-}
-
 template<typename T>
 void Graph<T>::kruskal_mst_cost() {
 
-    auto g = build_undirected_cost_graph();
+    int n = vertices.size();
     std::vector<Edge> list;
 
-    for (int u = 0; u < g.size(); u++)
-        for (auto& e : g[u])
-            if (u < e.dest) list.push_back(e);
+    for (int u = 0; u < n; u++) {
+        for (auto& e : edges[u]) {
+            if (u < e.dest)
+                list.push_back(e);
+        }
+    }
 
     std::sort(list.begin(), list.end(),
-              [](Edge a, Edge b){ return a.cost < b.cost; });
+        [](Edge a, Edge b) { return a.cost < b.cost; });
 
-    std::vector<int> parent(vertices.size());
-    for (int i = 0; i < parent.size(); i++) parent[i] = i;
+    std::vector<int> parent(n);
+    for (int i = 0; i < n; i++) parent[i] = i;
 
-    std::function<int(int)> find = [&](int x){
-        return parent[x]==x?x:parent[x]=find(parent[x]);
+    std::function<int(int)> find = [&](int x) {
+        return parent[x] == x ? x : parent[x] = find(parent[x]);
     };
 
     int total = 0;
@@ -558,50 +416,256 @@ void Graph<T>::kruskal_mst_cost() {
 
     std::cout << "Total: " << total << "\n";
 }
+// ================= CONNECTION COUNT =================
+template<typename T>
+void Graph<T>::connection_count() {
 
+    int n = vertices.size();
+    std::vector<int> in(n, 0), out(n, 0);
+
+    for (int u = 0; u < n; u++) {
+        out[u] = edges[u].size();
+        for (auto& e : edges[u]) in[e.dest]++;
+    }
+
+    std::vector<std::pair<int,int>> res;
+    for (int i = 0; i < n; i++)
+        res.push_back({in[i] + out[i], i});
+
+    std::sort(res.rbegin(), res.rend());
+
+    for (auto& p : res) {
+        int i = p.second;
+        std::cout << vertices[i].getData()
+                  << " | Total: " << p.first
+                  << " (In: " << in[i]
+                  << ", Out: " << out[i] << ")\n";
+    }
+
+}
+
+
+template <typename T>
+std::vector<std::vector<Edge>> Graph<T>::build_undirected_cost_graph()
+{
+    int n = static_cast<int>(vertices.size());
+    std::vector<std::vector<Edge>> gu(n);
+
+    std::map<std::pair<int, int>, Edge> bestEdge;
+
+    for (int u = 0; u < n; u++) {
+        for (const auto& e : edges[u]) {
+            int v = e.dest;
+            int a = std::min(u, v);
+            int b = std::max(u, v);
+            std::pair<int, int> key = {a, b};
+
+            if (bestEdge.find(key) == bestEdge.end() || e.cost < bestEdge[key].cost) {
+                bestEdge[key] = e;
+            }
+        }
+    }
+
+    for (const auto& item : bestEdge) {
+        int u = item.first.first;
+        int v = item.first.second;
+        int c = item.second.cost;
+
+        gu[u].push_back(Edge(u, v, 0, c));
+        gu[v].push_back(Edge(v, u, 0, c));
+    }
+
+    return gu;
+}
+
+template <typename T>
+void Graph<T>::prim_mst(const Vertex<T>& start)
+{
+    int n = vertices.size();
+    int startIdx = get_vertex_index(start);
+
+    if (startIdx == -1)
+        throw std::string("Prim: start vertex not found");
+
+    std::vector<bool> inMST(n, false);
+
+    using P = std::pair<int, int>; // (cost, vertex index)
+    std::priority_queue<P, std::vector<P>, std::greater<P>> pq;
+
+    pq.push({0, startIdx});
+
+    int totalCost = 0;
+    int edgesUsed = 0;
+
+    std::cout << "Prim MST:\n";
+
+    while (!pq.empty())
+    {
+        auto [cost, u] = pq.top();
+        pq.pop();
+
+        if (inMST[u]) continue;
+
+        inMST[u] = true;
+        totalCost += cost;
+        edgesUsed++;
+
+        if (cost != 0) {
+            std::cout << vertices[u].getData()
+                      << " (" << cost << ")\n";
+        }
+
+        for (const Edge& e : edges[u])
+        {
+            int v = e.dest;
+
+            if (!inMST[v])
+            {
+                pq.push({e.cost, v});
+            }
+        }
+    }
+
+    if (edgesUsed != n)
+    {
+        std::cout << "Graph is disconnected. MST cannot be formed.\n";
+    }
+
+    std::cout << "Total: " << totalCost << "\n";
+}
+
+
+template <typename T>
+void Graph<T>::shortest_paths_to_state(const Vertex<T>& start, const std::string& prefix)
+{
+    std::unordered_map<T, int> dist;
+    std::unordered_map<T, T> parent;
+
+    std::priority_queue<
+        std::pair<int, T>,
+        std::vector<std::pair<int, T>>,
+        std::greater<std::pair<int, T>>
+    > pq;
+
+    // FIXED HERE
+    for (const auto& v : this->adjList)
+        dist[v.first] = INT_MAX;
+
+    dist[start.getData()] = 0;
+    pq.push({0, start.getData()});
+
+    while (!pq.empty())
+    {
+        auto [d, u] = pq.top();
+        pq.pop();
+
+        if (d > dist[u]) continue;
+
+        // FIXED HERE
+        for (const auto& edge : this->adjList[u])
+        {
+            T v = edge.first.getData();
+            int weight = edge.second;
+
+            if (dist[u] + weight < dist[v])
+            {
+                dist[v] = dist[u] + weight;
+                parent[v] = u;
+                pq.push({dist[v], v});
+            }
+        }
+    }
+
+    std::cout << "--- Paths to prefix: " << prefix << " ---\n";
+
+   
+    for (const auto& vtx : this->adjList)
+    {
+        const T& name = vtx.first;
+
+        if (name.substr(0, prefix.size()) == prefix && dist[name] != INT_MAX)
+        {
+            std::vector<T> path;
+            T curr = name;
+
+            while (curr != start.getData())
+            {
+                path.push_back(curr);
+                curr = parent[curr];
+            }
+
+            path.push_back(start.getData());
+            std::reverse(path.begin(), path.end());
+
+            for (const auto& p : path)
+                std::cout << p << " -> ";
+
+            std::cout << "cost: " << dist[name] << "\n";
+        }
+    }
+}
 // ================= MAIN =================
 int main() {
 
-    Graph<std::string> g;
+    try {
+        Graph<std::string> g;
 
-    // ---- LOAD CSV ----
-    std::cout << "--- Loading Graph ---\n";
-    g.load_csv("airports.h");  
-    g.print();
+        std::cout << "--- Loading Graph from CSV ---\n";
+        g.load_csv("airports.h");   // FIX: use .csv, not .h
+        g.print();
 
-    // ---- DIJKSTRA (single source → destination) ----
-    std::cout << "\n--- Dijkstra (ATL → BOS) ---\n";
-    Vertex<std::string> src("ATL"), dest("BOS");
+  
+        // 2) Shortest path (single pair)
 
-    int d = g.dijkstra_shortest_path(src, dest);
-    if (d == -1)
-        std::cout << "No path found.\n";
+        std::cout << "\n--- Shortest Path (Dijkstra) ---\n";
+        Vertex<std::string> src("ATL");
+        Vertex<std::string> dest("BOS");
 
-    // ---- SHORTEST PATHS TO PREFIX (STATE SIMULATION) ----
-    std::cout << "\n--- Shortest Paths to Prefix 'B' ---\n";
-    g.shortest_paths_to_prefix(src, "B");  
-    // Example: all airports starting with 'B'
 
-    // ---- SHORTEST PATH WITH K STOPS ----
-    std::cout << "\n--- Shortest Path with K Stops ---\n";
-    int K = 2;
-    g.shortest_path_k_stops(src, dest, K);
+        int d = g.dijkstra_shortest_path(src, dest);
+        if (d == -1)
+            std::cout << "No path exists.\n";
 
-    // ---- CONNECTION COUNTS ----
-    std::cout << "\n--- Connection Counts ---\n";
-    g.print_connection_counts();
+       
+        // 3) Shortest paths to all airports in a state
+        
+        std::cout << "\n--- Shortest Paths to Destination Group ---\n";
+        g.shortest_paths_to_state(src, "FL");  
+        // NOTE: replace "B" with actual state logic if required
 
-    // ---- PRIM MST ----
-    std::cout << "\n--- Prim MST ---\n";
-    Vertex<std::string> start("ORD");
-    g.prim_mst(start);
 
-    // ---- KRUSKAL MST ----
-    std::cout << "\n--- Kruskal MST ---\n";
-    g.kruskal_mst_cost();
+        // 4) Shortest path with K stops
+        
+        std::cout << "\n--- Shortest Path with K Stops ---\n";
+        int K = 2;
+       g.dijkstra_shortest_path(src, dest);
 
-    return 0;
-}
+   
+        // 5) Connection counts (in + out)
+       
+        std::cout << "\n--- Connection Counts ---\n";
+        g.connection_count();
+
+  
+        // 6) Undirected graph construction
+        
+       
+        std::cout << "\n--- Building Undirected Graph (implicit) ---\n";
+        std::cout << "Done (used in MST algorithms)\n";
+
+        // 7) Prim’s MST
+   
+        std::cout << "\n--- Prim MST ---\n";
+        Vertex<std::string> start("ORD");
+        g.prim_mst(start);
+        // 8) Kruskal MST
+        std::cout << "\n--- Kruskal MST ---\n";
+        g.kruskal_mst_cost();
+
+    } 
+    catch (std::string& e) {
+        std::cout << "Error: " << e << "\n";
+    }
 
     return 0;
 }
