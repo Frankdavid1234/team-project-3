@@ -117,8 +117,11 @@ public:
     void load_csv(const std::string& filename);
 
     // Traversals
+    int shortest_path_k_stops(const Vertex<T>& src,const Vertex<T>& dest, int K);      
     void DFS(Vertex<T>& ver);
     void BFS(Vertex<T>& ver);
+    void print_connection_counts();
+    void shortest_paths_to_prefix(const Vertex<T>& src, const std::string& prefix);
 
     // Algorithms
     int dijkstra_shortest_path(const Vertex<T>& src, const Vertex<T>& dest);
@@ -353,6 +356,136 @@ std::vector<std::vector<Edge>> Graph<T>::build_undirected_cost_graph() {
     return undirected;
 }
 
+
+template<typename T>
+void Graph<T>::shortest_paths_to_prefix(const Vertex<T>& src, const std::string& prefix) {
+
+    int s = get_vertex_index(src);
+    if (s == -1) throw std::string("Invalid source");
+
+    int n = vertices.size();
+    std::vector<int> dist(n, INT_MAX);
+    std::vector<int> parent(n, -1);
+
+    MinHeap<Edge> heap;
+    dist[s] = 0;
+    heap.insert(Edge(-1, s, 0, 0));
+
+    while (!heap.empty()) {
+        Edge cur = heap.delete_min();
+        int u = cur.dest;
+
+        for (auto& e : edges[u]) {
+            int v = e.dest;
+            int nd = dist[u] + e.distance;
+
+            if (nd < dist[v]) {
+                dist[v] = nd;
+                parent[v] = u;
+                heap.insert(Edge(u, v, nd, 0));
+            }
+        }
+    }
+
+    std::cout << "\n--- Paths to prefix: " << prefix << " ---\n";
+
+    bool found = false;
+
+    for (int i = 0; i < n; i++) {
+        std::string name = vertices[i].getData();
+
+        if (name.substr(0, prefix.size()) == prefix && dist[i] != INT_MAX) {
+            found = true;
+
+            std::vector<int> path;
+            for (int v = i; v != -1; v = parent[v])
+                path.push_back(v);
+
+            std::reverse(path.begin(), path.end());
+
+            for (int p : path)
+                std::cout << vertices[p].getData() << " ";
+
+            std::cout << "| Dist: " << dist[i] << "\n";
+        }
+    }
+
+    if (!found)
+        std::cout << "No paths found\n";
+}
+
+
+template<typename T>
+void Graph<T>::print_connection_counts() {
+
+    int n = vertices.size();
+    std::vector<int> inbound(n, 0), outbound(n, 0);
+
+    for (int u = 0; u < n; u++) {
+        for (auto& e : edges[u]) {
+            outbound[u]++;
+            inbound[e.dest]++;
+        }
+    }
+
+    std::vector<std::pair<int,int>> total;
+
+    for (int i = 0; i < n; i++) {
+        int sum = inbound[i] + outbound[i];
+        total.push_back({sum, i});
+    }
+
+    std::sort(total.begin(), total.end(),
+              [](auto& a, auto& b){ return a.first > b.first; });
+
+    std::cout << "\n--- Connection Counts ---\n";
+    for (auto& p : total) {
+        int i = p.second;
+        std::cout << vertices[i].getData()
+                  << " | Total: " << p.first
+                  << " (In: " << inbound[i]
+                  << ", Out: " << outbound[i] << ")\n";
+    }
+}
+
+template<typename T>
+int Graph<T>::shortest_path_k_stops(const Vertex<T>& src,const Vertex<T>& dest,int K) {
+
+    int s = get_vertex_index(src);
+    int t = get_vertex_index(dest);
+
+    if (s == -1 || t == -1)
+        throw std::string("Invalid vertices");
+
+    int n = vertices.size();
+
+    std::vector<std::vector<int>> dist(n, std::vector<int>(K+2, INT_MAX));
+    dist[s][0] = 0;
+
+    for (int k = 0; k <= K; k++) {
+        for (int u = 0; u < n; u++) {
+            if (dist[u][k] == INT_MAX) continue;
+
+            for (auto& e : edges[u]) {
+                int v = e.dest;
+                dist[v][k+1] = std::min(dist[v][k+1],
+                                        dist[u][k] + e.distance);
+            }
+        }
+    }
+
+    if (dist[t][K+1] == INT_MAX) {
+        std::cout << "No path with " << K << " stops\n";
+        return -1;
+    }
+
+    std::cout << "Shortest distance with "
+              << K << " stops: " << dist[t][K+1] << "\n";
+
+    return dist[t][K+1];
+}
+
+
 template<typename T>
 void Graph<T>::prim_mst(const Vertex<T>& start) {
 
@@ -381,7 +514,12 @@ void Graph<T>::prim_mst(const Vertex<T>& start) {
         for (auto& ne : g[e.dest])
             if (!vis[ne.dest]) heap.insert(ne);
     }
+    bool connected = true;
+    for (bool v : vis)
+        if (!v) connected = false;
 
+    if (!connected)
+        std::cout << "Graph is disconnected. MST not possible.\n";
     std::cout << "Total: " << total << "\n";
 }
 
@@ -423,28 +561,47 @@ void Graph<T>::kruskal_mst_cost() {
 
 // ================= MAIN =================
 int main() {
-    
+
     Graph<std::string> g;
-    // CSV Testing
-    g.load_csv("airports.h");
-    std::cout << "Graph loaded from CSV:\n";
+
+    // ---- LOAD CSV ----
+    std::cout << "--- Loading Graph ---\n";
+    g.load_csv("airports.csv");  // ⚠️ FIXED: should be .csv, not .h
     g.print();
 
-    // ---- Dijkstra ----
-    std::cout<<"\n--- Dijkstra ---\n"; 
+    // ---- DIJKSTRA (single source → destination) ----
+    std::cout << "\n--- Dijkstra (ATL → BOS) ---\n";
     Vertex<std::string> src("ATL"), dest("BOS");
+
     int d = g.dijkstra_shortest_path(src, dest);
     if (d == -1)
         std::cout << "No path found.\n";
 
-    // ---- Prim MST ----
+    // ---- SHORTEST PATHS TO PREFIX (STATE SIMULATION) ----
+    std::cout << "\n--- Shortest Paths to Prefix 'B' ---\n";
+    g.shortest_paths_to_prefix(src, "B");  
+    // Example: all airports starting with 'B'
+
+    // ---- SHORTEST PATH WITH K STOPS ----
+    std::cout << "\n--- Shortest Path with K Stops ---\n";
+    int K = 2;
+    g.shortest_path_k_stops(src, dest, K);
+
+    // ---- CONNECTION COUNTS ----
+    std::cout << "\n--- Connection Counts ---\n";
+    g.print_connection_counts();
+
+    // ---- PRIM MST ----
     std::cout << "\n--- Prim MST ---\n";
     Vertex<std::string> start("ORD");
     g.prim_mst(start);
 
-    // ---- Kruskal MST ----
+    // ---- KRUSKAL MST ----
     std::cout << "\n--- Kruskal MST ---\n";
     g.kruskal_mst_cost();
+
+    return 0;
+}
 
     return 0;
 }
