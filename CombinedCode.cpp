@@ -35,7 +35,7 @@ public:
     const T& getData() const { return data; }
     bool getVisited() const { return visited; }
     void setVisited(bool v) { visited = v; }
-
+    T get_data() const { return data; }
 private:
     T data;
     bool visited;
@@ -279,8 +279,8 @@ void Graph<T>::BFS(Vertex<T>& ver) {
 
 // ================= DIJKSTRA =================
 template<typename T>
-int Graph<T>::dijkstra_shortest_path(const Vertex<T>& src, const Vertex<T>& dest) {
 
+int Graph<T>::dijkstra_shortest_path(const Vertex<T>& src, const Vertex<T>& dest) {
     int s = get_vertex_index(src);
     int t = get_vertex_index(dest);
 
@@ -295,12 +295,16 @@ int Graph<T>::dijkstra_shortest_path(const Vertex<T>& src, const Vertex<T>& dest
     MinHeap<Edge> heap;
     heap.insert(Edge(-1, s, 0, 0));
 
+    std::cout << "Traversal order:\n";
+
     while (!heap.empty()) {
         Edge cur = heap.delete_min();
         int u = cur.dest;
 
         if (visited[u]) continue;
         visited[u] = true;
+
+        std::cout << "Visited: " << vertices[u].getData() << "\n";
 
         for (auto& e : edges[u]) {
             int v = e.dest;
@@ -422,45 +426,25 @@ int main() {
     
     Graph<std::string> g;
     // CSV Testing
-    g.load_csv("airports.csv");
-    g.print();
-    /* Vertex<std::string> src("JFK");   
-    Vertex<std::string> dest("LAX");  
-
-    std::cout << "\nDijkstra:\n";
-    g.dijkstra_shortest_path(src, dest); */
-
-    /* Manual testing
-    Vertex<std::string> A("A"), B("B"), C("C"), D("D");
-
-    g.insert_vertex(A);
-    g.insert_vertex(B);
-    g.insert_vertex(C);
-    g.insert_vertex(D);
-
-    g.add_edge(A,B,5,3);
-    g.add_edge(B,A,6,2);
-    g.add_edge(A,C,7,4);
-    g.add_edge(B,C,3,1);
-    g.add_edge(C,D,2,2);
-    g.add_edge(B,D,4,5);
-
+    g.load_csv("airports.h");
+    std::cout << "Graph loaded from CSV:\n";
     g.print();
 
-    std::cout << "\nDFS: ";
-    g.DFS(A);
+    // ---- Dijkstra ----
+    std::cout<<"\n--- Dijkstra ---\n"; 
+    Vertex<std::string> src("ATL"), dest("BOS");
+    int d = g.dijkstra_shortest_path(src, dest);
+    if (d == -1)
+        std::cout << "No path found.\n";
 
-    std::cout << "\nBFS: ";
-    g.BFS(A);
+    // ---- Prim MST ----
+    std::cout << "\n--- Prim MST ---\n";
+    Vertex<std::string> start("ORD");
+    g.prim_mst(start);
 
-    std::cout << "\nDijkstra A->D:\n";
-    g.dijkstra_shortest_path(A,D);
-
-    std::cout << "\nPrim MST:\n";
-    g.prim_mst(A);
-
-    std::cout << "\nKruskal MST:\n";
-    g.kruskal_mst_cost(); */
+    // ---- Kruskal MST ----
+    std::cout << "\n--- Kruskal MST ---\n";
+    g.kruskal_mst_cost();
 
     return 0;
 }
