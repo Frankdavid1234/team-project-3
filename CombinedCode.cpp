@@ -179,7 +179,7 @@ void Graph<T>::print() const {
     }
 }
 
-// ================= CSV =================
+// ================= CSV LOADER =================
 template <typename T>
 void Graph<T>::load_csv(const std::string& filename) {
     std::ifstream file(filename);
@@ -214,7 +214,7 @@ void Graph<T>::load_csv(const std::string& filename) {
     }
 }
 
-// ================= DFS / BFS =================
+// ================= DFS =================
 template <typename T>
 void Graph<T>::clean_visited() {
     for (auto& v : vertices) v.setVisited(false);
@@ -241,6 +241,7 @@ void Graph<T>::DFS_helper(Vertex<T>& ver) {
     }
 }
 
+// ================= BFS =================
 template <typename T>
 void Graph<T>::BFS(Vertex<T>& ver) {
     clean_visited();
