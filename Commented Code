@@ -1,5 +1,4 @@
 // Frank Moya Brandon Wilson, Pacey Bishop; Data Structures section 1, COP3415
-
 #include <iostream>
 #include <vector>
 #include <string>
@@ -11,8 +10,8 @@
 
 // ------------------ EDGE ------------------
 // This class represents a flight between two airports
-// stores source, destination, distance, and cost
-// used by graph algorithms dijkstra/MST
+// stores source, destination, distance,and cost
+// used by graph algorithms  dijkstra/MST
 class Edge {
 public:
     // constructor initializes all edge values
